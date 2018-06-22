@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = (sequelize, DataTypes) => {
-    const Comment = sequelize.define('comment', {
+    const Comment = sequelize.define('Comment', {
         id: {
             type: DataTypes.INTEGER,
             allowNull: false,

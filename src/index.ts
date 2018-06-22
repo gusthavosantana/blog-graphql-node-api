@@ -1,7 +1,7 @@
 import * as http from 'http';
 import app from './app';
 import { normalize } from 'path';
-import { normalizePort, onListening, onError } from './utils';
+import { normalizePort, onListening, onError } from './utils/utils';
 import db from './models';
 
 const server = http.createServer(app);

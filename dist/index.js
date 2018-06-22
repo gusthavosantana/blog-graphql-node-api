@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const http = require("http");
 const app_1 = require("./app");
-const utils_1 = require("./utils");
+const utils_1 = require("./utils/utils");
 const models_1 = require("./models");
 const server = http.createServer(app_1.default);
 const port = utils_1.normalizePort(process.env.port || 3000);
