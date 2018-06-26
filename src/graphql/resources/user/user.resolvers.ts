@@ -3,18 +3,24 @@ import { Transaction } from 'sequelize';
 
 import { DBConnection } from '../../../interfaces/DBConnectionInterface';
 import { UserInstance } from '../../../models/UserModel';
-import { handleError } from '../../../utils/utils';
+import { handleError, throwError } from '../../../utils/utils';
+import { AuthUser } from '../../../interfaces/AuthUserInterface';
+import { compose } from '../../composable/composable.resolver';
+import { authResolvers } from '../../composable/auth.resolvers';
+import { RequestedFields } from '../../ast/RequestedFields';
+import { ResolverContext } from '../../../interfaces/ResolverContextInterface';
 
 export const userResolvers = {
 
     User: {
 
-        posts: (parent, {first = 10, offset = 0}, {db}: {db: DBConnection}, info: GraphQLResolveInfo) => {
+        posts: (parent, {first = 10, offset = 0}, {db, requestedFields}: {db: DBConnection, requestedFields: RequestedFields}, info: GraphQLResolveInfo) => {
             
             return db.Post.findAll({
                 where: { author: parent.get('id') },
                 limit: first,
-                offset: offset
+                offset: offset,
+                attributes: requestedFields.getFields(info, { keep: ['id'], exclude: ['comments'] })
             })
             .catch(handleError);
         }
@@ -22,24 +28,39 @@ export const userResolvers = {
 
     Query: {
 
-        users: (parent, {first = 10, offset = 0}, {db}: {db: DBConnection}, info: GraphQLResolveInfo) => {
-            return db.User.findAll({
+        users: (parent, {first = 10, offset = 0}, context: ResolverContext, info: GraphQLResolveInfo) => {
+            return context.db.User.findAll({
                 limit: first,
-                offset: offset
+                offset: offset,
+                attributes: context.requestedFields.getFields(info, { keep: ['id'], exclude: ['posts']})
             })
             .catch(handleError);
         },
 
-        user: (parent, {id}, {db}: {db: DBConnection}, info: GraphQLResolveInfo) => {
+        user: (parent, {id}, context: ResolverContext, info: GraphQLResolveInfo) => {
             id = parseInt(id);
             
-            return db.User.findById(id)
+            return context.db.User.findById(id, {
+                    attributes: context.requestedFields.getFields(info, { keep: ['id'], exclude: ['posts']})
+                })
                 .then((user: UserInstance) => {
-                    if(!user) throw new Error(`User with id ${id} not found.`);
+                    throwError(!user, `User with id ${id} not found.`);
                     return user;
                 })
                 .catch(handleError);
-        }
+        },
+
+        currentUser: compose(...authResolvers)((parent, args, context: ResolverContext, info: GraphQLResolveInfo) => {
+            
+            return context.db.User
+                .findById(context.authUser.id, {
+                    attributes: context.requestedFields.getFields(info, { keep: ['id'], exclude: ['posts']})
+                })
+                .then((user: UserInstance) => {
+                    throwError(!user, `User with id ${context.authUser.id} not found.`);
+                    return user;
+                }).catch(handleError);
+        })
     },
 
     Mutation: {
@@ -53,54 +74,48 @@ export const userResolvers = {
             .catch(handleError);
         },
 
-        updateUser: (parent, {id, input}, {db}: {db: DBConnection}, info: GraphQLResolveInfo) => {
+        updateUser: compose(...authResolvers)((parent, {input}, {db, authUser}: {db: DBConnection, authUser: AuthUser}, info: GraphQLResolveInfo) => {
             
-            id = parseInt(id);
-
             return db.sequelize.transaction((t: Transaction) => {
                 
                 return db.User
-                    .findById(id)
+                    .findById(authUser.id)
                     .then((user: UserInstance) => {
-                        if(!user) throw new Error(`User with id ${id} not found.`);
+                        throwError(!user, `User with id ${authUser.id} not found.`);
                         return user.update(input, {transaction: t});
                     });
             })
             .catch(handleError);
-        },
+        }),
 
-        updateUserPassword: (parent, {id, input}, {db}: {db: DBConnection}, info: GraphQLResolveInfo) => {
+        updateUserPassword: compose(...authResolvers)((parent, {input}, {db, authUser}: {db: DBConnection, authUser: AuthUser}, info: GraphQLResolveInfo) => {
             
-            id = parseInt(id);
-
             return db.sequelize.transaction((t: Transaction) => {
                 
                 return db.User
-                    .findById(id)
+                    .findById(authUser.id)
                     .then((user: UserInstance) => {
-                        if(!user) throw new Error(`User with id ${id} not found.`);
+                        throwError(!user, `User with id ${authUser.id} not found.`);
                         return user.update(input, {transaction: t})
                             .then((user: UserInstance) => !!user);
                     });
             })
             .catch(handleError);
-        },
+        }),
 
-        deleteUser: (parent, {id}, {db}: {db: DBConnection}, info: GraphQLResolveInfo) => {
+        deleteUser: compose(...authResolvers)((parent, args, {db, authUser}: {db: DBConnection, authUser: AuthUser}, info: GraphQLResolveInfo) => {
             
-            id = parseInt(id);
-
             return db.sequelize.transaction((t: Transaction) => {
                 
-                return db.User.findById(id)
+                return db.User
+                    .findById(authUser.id)
                     .then((user: UserInstance) => {
-                        if(!user) throw new Error(`User with id ${id} not found.`);
+                        throwError(!user, `User with id ${authUser.id} not found.`);
                         return user.destroy({transaction: t})
                             .then(user => !!user);
                     })
             })
             .catch(handleError);
-        },
-
+        })
     }
 }
