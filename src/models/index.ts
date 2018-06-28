@@ -26,11 +26,12 @@ if(!db) {
         config.password,
         config
     );
-
+    
     fs.readdirSync(__dirname)
-        
-        .filter((file: string) => {
-            return (file.indexOf('.') !== 0) && (file !== basename) && file.slice(-3) === '.js';
+    
+    .filter((file: string) => {
+            const extension = file.slice(-3);
+            return (file.indexOf('.') !== 0) && (file !== basename) && (extension === '.js' || extension === '.ts');
         })
         .forEach((file: string) => {
             const model = sequelize.import(path.join(__dirname, file));

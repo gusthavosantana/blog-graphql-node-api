@@ -38,8 +38,14 @@ exports.onListening = (server) => {
 };
 exports.handleError = (error) => {
     const errorMessage = `${error.name}: ${error.message}`;
-    console.log(errorMessage);
-    console.log(error);
+    if (process.env.NODE_ENV != 'test') {
+        console.log(errorMessage);
+        console.log(error);
+    }
     return Promise.reject(new Error(errorMessage));
+};
+exports.throwError = (condition, message) => {
+    if (condition)
+        throw new Error(message);
 };
 exports.JWT_SECRET = process.env.JWT_SECRET;

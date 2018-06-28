@@ -1,76 +1,83 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const utils_1 = require("../../../utils/utils");
+const composable_resolver_1 = require("../../composable/composable.resolver");
+const auth_resolvers_1 = require("../../composable/auth.resolvers");
 exports.postResolvers = {
     Post: {
-        author: (parent, args, { db }, info) => {
-            return db.User
-                .findById(parent.get('author'))
+        author: (parent, args, { db, dataloaders: { userLoader } }, info) => {
+            return userLoader
+                .load({ key: parent.get('author'), info })
                 .catch(utils_1.handleError);
         },
-        comments: (parent, { first = 10, offset = 0 }, { db }, info) => {
-            return db.Comment.findAll({
+        comments: (parent, { first = 10, offset = 0 }, context, info) => {
+            return context.db.Comment.findAll({
                 where: { post: parent.get('id') },
                 limit: first,
-                offset: offset
+                offset: offset,
+                attributes: context.requestedFields.getFields(info)
             })
                 .catch(utils_1.handleError);
         }
     },
     Query: {
-        posts: (parent, { first = 10, offset = 0 }, { db }, info) => {
-            return db.Post
+        posts: (parent, { first = 10, offset = 0 }, context, info) => {
+            return context.db.Post
                 .findAll({
                 limit: first,
-                offset: offset
+                offset: offset,
+                attributes: context.requestedFields.getFields(info, { keep: ['id'], exclude: ['comments'] })
             })
                 .catch(utils_1.handleError);
         },
-        post: (parent, { id }, { db }, info) => {
+        post: (parent, { id }, context, info) => {
             id = parseInt(id);
-            return db.Post
-                .findById(id)
+            return context.db.Post
+                .findById(id, {
+                attributes: context.requestedFields.getFields(info, { keep: ['id'], exclude: ['comments'] })
+            })
                 .then((post) => {
-                if (!post)
-                    throw new Error(`Post with id ${id} not found.`);
+                utils_1.throwError(!post, `Post with id ${id} not found.`);
                 return post;
             })
                 .catch(utils_1.handleError);
         }
     },
     Mutation: {
-        createPost: (parent, { input }, { db }, info) => {
+        createPost: composable_resolver_1.compose(...auth_resolvers_1.authResolvers)((parent, { input }, { db, authUser }, info) => {
+            input.author = authUser.id;
             return db.sequelize.transaction((t) => {
                 return db.Post.create(input, { transaction: t });
             })
                 .catch(utils_1.handleError);
-        },
-        updatePost: (parent, { id, input }, { db }, info) => {
+        }),
+        updatePost: composable_resolver_1.compose(...auth_resolvers_1.authResolvers)((parent, { id, input }, { db, authUser }, info) => {
             id = parseInt(id);
             return db.sequelize.transaction((t) => {
                 return db.Post
                     .findById(id)
                     .then(post => {
-                    if (!post)
-                        throw new Error(`Post with id ${id} not found.`);
+                    utils_1.throwError(!post, `Post with id ${id} not found.`);
+                    utils_1.throwError(post.get('author') != authUser.id, `Unauthorized! You can only edit posts by yourself`);
+                    input.author = authUser.id;
                     return post.update(input, { transaction: t });
                 });
             })
                 .catch(utils_1.handleError);
-        },
-        deletePost: (parent, { id }, { db }, info) => {
+        }),
+        deletePost: composable_resolver_1.compose(...auth_resolvers_1.authResolvers)((parent, { id }, { db, authUser }, info) => {
             id = parseInt(id);
             return db.sequelize.transaction((t) => {
                 return db.Post
                     .findById(id)
                     .then(post => {
-                    if (!post)
-                        throw new Error(`Post with id ${id} not found.`);
+                    utils_1.throwError(!post, `Post with id ${id} not found.`);
+                    utils_1.throwError(post.get('author') != authUser.id, `Unauthorized! You can only edit posts by yourself`);
                     return post.destroy({ transaction: t })
                         .then(post => !!post);
                 });
             })
                 .catch(utils_1.handleError);
-        }
+        })
     }
 };

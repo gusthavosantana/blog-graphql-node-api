@@ -12,7 +12,7 @@ export const commentResolvers = {
 
     Comment: {
 
-        user: (parent, args, {db, dataloaders: {userLoader}}: {db: DBConnection, dataloaders: DataLoaders, info) => {
+        user: (parent, args, {db, dataloaders: {userLoader}}: {db: DBConnection, dataloaders: DataLoaders}, info) => {
             
             return userLoader
                 .load({key: parent.get('user'), info})
@@ -36,7 +36,7 @@ export const commentResolvers = {
                 offset: offset,
                 attributes: context.requestedFields.getFields(info)
             })
-            .catch(handleError);;
+            .catch(handleError);
         }
     },
 
